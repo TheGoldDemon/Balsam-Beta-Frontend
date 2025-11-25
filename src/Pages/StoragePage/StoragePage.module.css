@@ -1,0 +1,30 @@
+#qr-reader {
+  border: 2px solid #333 !important;
+  border-radius: 8px;
+}
+
+#qr-reader__dashboard {
+  padding: 10px;
+}
+
+#qr-reader__dashboard_section {
+  margin: 10px 0;
+}
+
+#qr-reader__dashboard_section_csr span {
+  color: #333;
+}
+
+.html5-qrcode-element {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 5px;
+}
+
+.html5-qrcode-element:hover {
+  background-color: #0056b3;
+}

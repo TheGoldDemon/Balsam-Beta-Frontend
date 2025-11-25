@@ -1,0 +1,114 @@
+*{
+    margin: 0px;
+    padding: 0px;
+}
+
+#Wrapper{
+    width: 100vw;
+    height: 100dvh;
+    display: flex;
+}
+
+#Image{
+    width: 36%;
+    height: 100%;
+    display: block;
+    filter: drop-shadow(5px 0px 5px rgba(0, 0, 0, 0.463));
+}
+
+#Fields{
+    width: 64%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#SmallerFields{
+    width: 50%;
+    height: 80%;
+    display: flex;
+    justify-content: space-evenly;
+    align-items: center;
+    flex-direction: column;
+}
+
+#InputWrapper{
+    width: 100%;
+    height: 60%;
+    display: flex;
+    justify-content: space-evenly;
+    align-items: center;
+    flex-direction: column;
+}
+
+#TextWrapper{
+    width: 100%;
+    height: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.Inpts{
+    background-color: #CBD5E1;
+    height: 40px;
+    margin: 5px;
+    font-size: 20px;
+    padding: 2px;
+    color: hsla(0, 0%, 0%, 0.5);
+}
+
+#FirstName{
+    width: 50%;
+    border: transparent;
+    margin-left: 0px;
+}
+
+#LastName{
+    width: 50%;
+    border: transparent;
+    margin-right: 0px;
+}
+
+#Email{
+    width: 100%;
+    border: transparent;
+}
+
+#Password{
+    width: 100%;
+    border: transparent;
+}
+
+#RepeatPassword{
+    width: 100%;
+    border: transparent;
+}
+
+#BigText{
+    font-size: 48px;
+}
+
+#CreateAccount{
+    border: transparent;
+    width: 200px;
+    height: 50px;
+    cursor: pointer;
+}
+
+#CreateAccount:hover{
+    background-color: #abb2ba;
+}
+
+#GoogleBtn{
+    border: transparent;
+    width: 200px;
+    height: 50px;
+    cursor: pointer;
+}
+
+#GoogleBtn:hover{
+    background-color: #abb2ba;
+}
