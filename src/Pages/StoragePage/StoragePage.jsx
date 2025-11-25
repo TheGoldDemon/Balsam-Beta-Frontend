@@ -38,52 +38,18 @@ function StoragePage() {
       .catch(console.error);
   }, [userId]);
 
-  // QR scanner setup with continuous retry
-  useEffect(() => {
-    let cancelled = false;
 
-    const startScannerWithRetry = async () => {
-      while (!cancelled) {
-        try {
-          const devices = await QRScanner.listCameras(true);
-          if (devices.length === 0) throw new Error("No camera found");
-
-          const scanner = new QRScanner(videoRef.current, handleQRScan, {
-            highlightScanRegion: true,
-            highlightCodeOutline: true,
-            maxScansPerSecond: 5,
-            preferredCamera: "environment",
-          });
-
-          await scanner.start();
-          qrScannerRef.current = scanner;
-          console.log("Camera connected!");
-          break; // stop retrying once camera starts
-        } catch (err) {
-          console.warn("Camera not ready, retrying in 1s...", err);
-          await new Promise(res => setTimeout(res, 1000));
-        }
-      }
-    };
-
-    if (showQRModal) startScannerWithRetry();
-
-    return () => {
-      cancelled = true;
-      qrScannerRef.current?.stop();
-      qrScannerRef.current = null;
-    };
-  }, [showQRModal]);
-
-  const handleQRScan = async (qrCode) => {
-    qrScannerRef.current?.stop(); // stop scanning immediately
+  // ============================================================
+  // Unified handler for BOTH native + fallback QR scan results
+  // ============================================================
+  const handleNativeQRScan = async (value) => {
     try {
-      console.log("Sending QR to backend:", qrCode);
-      qrCode = qrCode.data
+      console.log("QR detected:", value);
+
       const response = await fetch(`${API_URL}/drugs/qr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qrCode, UserId: userId }),
+        body: JSON.stringify({ qrCode: value, UserId: userId }),
       });
 
       const data = await response.json();
@@ -91,21 +57,136 @@ function StoragePage() {
       if (data.success) {
         alert("✅ Drug added from QR code!");
 
-        // Convert to JSON-safe object before setting state
         const cleanDrug = JSON.parse(JSON.stringify(data.result));
 
         setDrugs(prev => [...prev, cleanDrug]);
         setShowQRModal(false);
       } else {
-        console.error("Failed to fetch drug from QR code:", data.error);
-        alert(`❌ Failed to fetch drug from QR code:\n${data.error}`);
+        alert("❌ Failed:\n" + data.error);
       }
     } catch (err) {
-      console.error("Error scanning QR code:", err);
-      alert(`❌ Error scanning QR code:\n${err.message}`);
+      alert("❌ Error:\n" + err.message);
+      console.error(err);
     }
   };
 
+
+  // ============================================================
+  // Native BarcodeDetector + fallback QRScanner
+  // ============================================================
+  useEffect(() => {
+    if (!showQRModal) return;
+
+    const video = videoRef.current;
+    let stopNative = false;
+
+    const startNativeScanner = async () => {
+      if (!("BarcodeDetector" in window)) return false;
+
+      let formats = [];
+      try {
+        formats = await window.BarcodeDetector.getSupportedFormats();
+      } catch {}
+
+      if (!formats.includes("qr_code")) return false;
+
+      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      console.log("Starting native scanner...");
+
+      // Start camera
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      video.srcObject = stream;
+      await video.play();
+
+      const scanLoop = async () => {
+        if (stopNative) return;
+
+        try {
+          const results = await detector.detect(video);
+          if (results.length > 0) {
+            stopNative = true;
+            stream.getTracks().forEach(t => t.stop());
+            await handleNativeQRScan(results[0].rawValue);
+            return;
+          }
+        } catch (err) {
+          console.warn("Native scan error:", err);
+        }
+
+        requestAnimationFrame(scanLoop);
+      };
+
+      scanLoop();
+      return true;
+    };
+
+
+    const startFallbackScanner = async () => {
+      let cancelled = false;
+
+      const retry = async () => {
+        while (!cancelled) {
+          try {
+            const devices = await QRScanner.listCameras(true);
+            if (!devices.length) throw new Error("No cameras");
+
+            const scanner = new QRScanner(video, handleQRScanFallback, {
+              highlightScanRegion: true,
+              highlightCodeOutline: true,
+              maxScansPerSecond: 5,
+              preferredCamera: "environment",
+            });
+
+            await scanner.start();
+            qrScannerRef.current = scanner;
+            console.log("Fallback QRScanner running.");
+            break;
+          } catch (err) {
+            console.warn("Retrying fallback scanner in 1s...", err);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+      };
+
+      retry();
+
+      return () => {
+        cancelled = true;
+        qrScannerRef.current?.stop();
+      };
+    };
+
+
+    startNativeScanner().then((supported) => {
+      if (!supported) {
+        console.log("Native not supported → fallback.");
+        startFallbackScanner();
+      }
+    });
+
+    return () => {
+      stopNative = true;
+      qrScannerRef.current?.stop();
+      qrScannerRef.current = null;
+    };
+  }, [showQRModal]);
+
+
+  // ============================================================
+  // Fallback handler (from qr-scanner library)
+  // ============================================================
+  const handleQRScanFallback = async (qr) => {
+    qrScannerRef.current?.stop();
+    const value = qr.data || qr;
+    await handleNativeQRScan(value);
+  };
+
+
+  // ============================================================
+  // Create Drug Handlers
+  // ============================================================
   const handleCreateInput = (e) => {
     const { name, value } = e.target;
     setNewDrug(prev => ({ ...prev, [name]: value }));
@@ -159,6 +240,10 @@ function StoragePage() {
     }
   };
 
+
+  // ============================================================
+  // Render
+  // ============================================================
   return (
     <div style={{ padding: "20px" }}>
       <h1>Storage Page</h1>
@@ -194,7 +279,8 @@ function StoragePage() {
                 <label style={{ display: "block", fontWeight: "bold" }}>{key}</label>
                 <input
                   name={key}
-                  type={key.includes("Price") || key === "Quantity" ? "number" : key.includes("Date") ? "date" : "text"}
+                  type={key.includes("Price") || key === "Quantity" ? "number" :
+                    key.includes("Date") ? "date" : "text"}
                   value={newDrug[key]}
                   onChange={handleCreateInput}
                   style={{ width: "100%", padding: "6px", borderRadius: "4px", border: "1px solid #ccc" }}
@@ -214,9 +300,13 @@ function StoragePage() {
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: "rgba(0,0,0,0.8)", display: "flex",
-          alignItems: "center", justifyContent: "center", zIndex: 1000, flexDirection: "column", position: "relative"
+          alignItems: "center", justifyContent: "center", zIndex: 1000,
+          flexDirection: "column", position: "relative"
         }}>
-          <video ref={videoRef} style={{ width: "300px", height: "300px", borderRadius: "8px", objectFit: "cover" }}></video>
+          <video ref={videoRef} style={{
+            width: "300px", height: "300px",
+            borderRadius: "8px", objectFit: "cover"
+          }} />
 
           {/* Scan guide */}
           <div style={{
@@ -244,5 +334,3 @@ function StoragePage() {
 // Export
 export default StoragePage;
 //===================================================================================//
-
-
