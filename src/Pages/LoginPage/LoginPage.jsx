@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 
 import styles from "./LoginPage.module.css"
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = "balsam-beta-backend-production-aa55.up.railway.app";
 //===================================================================================//
 //
 // LOGIN FUNCTION
@@ -124,4 +124,5 @@ function LoginPage() {
 //===================================================================================//
 // Export
 export default LoginPage;
+
 //===================================================================================//
