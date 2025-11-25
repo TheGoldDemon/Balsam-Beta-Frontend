@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = "balsam-beta-backend-production-aa55.up.railway.app";
 
 const DrugCard = ({
   id, // Drug ID
@@ -180,3 +180,4 @@ const DrugCard = ({
 };
 
 export default DrugCard;
+
