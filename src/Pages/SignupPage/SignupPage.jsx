@@ -1,64 +1,76 @@
 //===================================================================================//
 // Imports
-import { Link } from "react-router"
-import { useNavigate } from "react-router"
-import { useState } from "react"
+import { Link } from "react-router";
+import { useNavigate } from "react-router";
+import { useState } from "react";
 
-import styles from "./SignupPage.module.css"
+import styles from "./SignupPage.module.css";
 
 const API_URL = "https://balsam-beta-backend-production-aa55.up.railway.app";
 //===================================================================================//
-// Functions
-async function CreateAccount(
-  FirstName, LastName, Email, Password, RepeatPassword, TOSCheck, navigate
-) {
-  if (Password !== RepeatPassword) {
-    throw Error("Passwords do not match!");
-  }
-
-  if (!TOSCheck) {
-    throw Error("You must accept Terms of Service");
-  }
-
+// API Function
+async function CreateAccount(data) {
   const response = await fetch(`${API_URL}/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    // credentials removed because frontend sets cookie manually
-    body: JSON.stringify({
-      FirstName,
-      LastName,
-      Email,
-      Password,
-      BirthDate: new Date().toISOString(),
-      Gender: "Male",
-      PhoneNumber: "07738502768"
-    })
+    body: JSON.stringify(data)
   });
 
-  const data = await response.json();
-  console.log("REGISTER RESPONSE:", data);
+  const json = await response.json();
 
-  if (!response.ok || !data.success) {
-    throw new Error("Failed to create account");
+  if (!response.ok || !json.success) {
+    throw new Error(json.error || "Failed to create account");
   }
 
-  // save in localStorage and set cookie manually
-  localStorage.setItem("userId", data.id);
-  document.cookie = `userId=${data.id}; path=/; max-age=${60 * 60 * 24 * 30}`;
-
-  navigate("/storage");
+  return json.id;
 }
 //===================================================================================//
-// Element
+// Component
 function SignupPage() {
-  const [FirstName, FirstNameChanger] = useState("");
-  const [LastName, LastNameChanger] = useState("");
-  const [Email, EmailChanger] = useState("");
-  const [Password, PasswordChanger] = useState("");
-  const [RepeatPassword, RepeatPasswordChanger] = useState("");
-  const [TOSCheck, TOSCheckChanger] = useState(false);
-
   const navigate = useNavigate();
+
+  const [FirstName, setFirstName] = useState("");
+  const [LastName, setLastName] = useState("");
+  const [Email, setEmail] = useState("");
+  const [Password, setPassword] = useState("");
+  const [RepeatPassword, setRepeatPassword] = useState("");
+  const [TOSCheck, setTOSCheck] = useState(false);
+
+  const [ErrorMsg, setErrorMsg] = useState("");
+
+  const handleSubmit = async () => {
+    setErrorMsg("");
+
+    if (Password !== RepeatPassword) {
+      setErrorMsg("Passwords do not match");
+      return;
+    }
+
+    if (!TOSCheck) {
+      setErrorMsg("You must accept Terms of Service");
+      return;
+    }
+
+    try {
+      const id = await CreateAccount({
+        FirstName,
+        LastName,
+        Email,
+        Password,
+        BirthDate: new Date().toISOString(),
+        Gender: "Male",
+        PhoneNumber: "07738502768"
+      });
+
+      // Save ID
+      localStorage.setItem("userId", id);
+      document.cookie = `userId=${id}; path=/; max-age=${60 * 60 * 24 * 30}`;
+
+      navigate("/storage");
+    } catch (err) {
+      setErrorMsg(err.message);
+    }
+  };
 
   return (
     <div id={styles.Wrapper}>
@@ -74,6 +86,12 @@ function SignupPage() {
           <div id={styles.BigText}>Create account</div>
           <button id={styles.GoogleBtn}>Or login with Google</button>
 
+          {ErrorMsg && (
+            <div style={{ color: "red", marginBottom: "10px" }}>
+              {ErrorMsg}
+            </div>
+          )}
+
           <div id={styles.InputWrapper}>
             <div id={styles.TextWrapper}>
               <input
@@ -81,14 +99,14 @@ function SignupPage() {
                 type="text"
                 className={styles.Inpts}
                 placeholder="First name"
-                onChange={(e) => FirstNameChanger(e.target.value)}
+                onChange={(e) => setFirstName(e.target.value)}
               />
               <input
                 id={styles.LastName}
                 type="text"
                 className={styles.Inpts}
                 placeholder="Last name"
-                onChange={(e) => LastNameChanger(e.target.value)}
+                onChange={(e) => setLastName(e.target.value)}
               />
             </div>
 
@@ -97,7 +115,7 @@ function SignupPage() {
               type="email"
               className={styles.Inpts}
               placeholder="Email"
-              onChange={(e) => EmailChanger(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
             />
 
             <input
@@ -105,7 +123,7 @@ function SignupPage() {
               type="password"
               className={styles.Inpts}
               placeholder="Password"
-              onChange={(e) => PasswordChanger(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
             />
 
             <input
@@ -113,32 +131,19 @@ function SignupPage() {
               type="password"
               className={styles.Inpts}
               placeholder="Repeat password"
-              onChange={(e) => RepeatPasswordChanger(e.target.value)}
+              onChange={(e) => setRepeatPassword(e.target.value)}
             />
 
             <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <input
                 id={styles.TOS}
                 type="checkbox"
-                onChange={(e) => TOSCheckChanger(e.target.checked)}
+                onChange={(e) => setTOSCheck(e.target.checked)}
               />
               <span>I accept Terms of Service</span>
             </label>
 
-            <button
-              id={styles.CreateAccount}
-              onClick={() => {
-                CreateAccount(
-                  FirstName,
-                  LastName,
-                  Email,
-                  Password,
-                  RepeatPassword,
-                  TOSCheck,
-                  navigate
-                );
-              }}
-            >
+            <button id={styles.CreateAccount} onClick={handleSubmit}>
               Create Account
             </button>
           </div>
@@ -150,6 +155,4 @@ function SignupPage() {
 //===================================================================================//
 // Export
 export default SignupPage;
-
 //===================================================================================//
-
