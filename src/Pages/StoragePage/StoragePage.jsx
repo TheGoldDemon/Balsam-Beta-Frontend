@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import DrugCard from "./DrugCard";
 import QRScanner from "qr-scanner"; // npm install qr-scanner
 import { QrcodeResultFormat } from "html5-qrcode/esm/core";
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = "balsam-beta-backend-production-aa55.up.railway.app";
 //===================================================================================//
 
 function StoragePage() {
@@ -244,3 +244,4 @@ function StoragePage() {
 // Export
 export default StoragePage;
 //===================================================================================//
+
