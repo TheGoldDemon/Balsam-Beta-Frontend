@@ -6,7 +6,7 @@ import { useState } from "react"
 
 import styles from "./SignupPage.module.css"
 
-const API_URL = "balsam-beta-backend-production-aa55.up.railway.app";
+const API_URL = "https://balsam-beta-backend-production-aa55.up.railway.app";
 //===================================================================================//
 // Functions
 async function CreateAccount(
@@ -152,3 +152,4 @@ function SignupPage() {
 export default SignupPage;
 
 //===================================================================================//
+
