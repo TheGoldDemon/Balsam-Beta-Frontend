@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const API_URL = "balsam-beta-backend-production-aa55.up.railway.app";
+const API_URL = "https://balsam-beta-backend-production-aa55.up.railway.app";
 
 const DrugCard = ({
   id, // Drug ID
@@ -180,4 +180,5 @@ const DrugCard = ({
 };
 
 export default DrugCard;
+
 
