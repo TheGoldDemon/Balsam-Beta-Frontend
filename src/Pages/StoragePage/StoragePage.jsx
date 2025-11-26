@@ -7,7 +7,7 @@ const API_URL = "https://balsam-beta-backend.onrender.com";
 function StoragePage() {
   const [drugs, setDrugs] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showQRModal, setShowQRModal] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
   const [newDrug, setNewDrug] = useState({
     BrandName: "",
     ScientificName: "",
@@ -23,12 +23,12 @@ function StoragePage() {
 
   const videoRef = useRef(null);
   const fileInputRef = useRef(null);
-  const qrScannerRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
 
   const userId = localStorage.getItem("userId");
 
-  // Fetch drugs on mount
+  // Fetch drugs
   useEffect(() => {
     fetch(`${API_URL}/drugs/${userId}`)
       .then(res => res.json())
@@ -38,10 +38,8 @@ function StoragePage() {
       .catch(console.error);
   }, [userId]);
 
-  // =========================================
-  // Unified QR handler
-  // =========================================
-  const handleNativeQRScan = async (value) => {
+  // Handle QR scan result
+  const handleQRResult = async (value) => {
     try {
       console.log("QR detected:", value);
       const response = await fetch(`${API_URL}/drugs/qr`, {
@@ -53,7 +51,6 @@ function StoragePage() {
       if (data.success) {
         alert("✅ Drug added from QR code!");
         setDrugs(prev => [...prev, JSON.parse(JSON.stringify(data.result))]);
-        setShowQRModal(false);
       } else {
         alert("❌ Failed:\n" + data.error);
       }
@@ -64,56 +61,49 @@ function StoragePage() {
   };
 
   // =========================================
-  // Handle multiple image selection
+  // Multiple image selection
   // =========================================
   const handlePhotoChange = async (e) => {
     const files = Array.from(e.target.files);
     for (let file of files) {
       try {
         const result = await QRScanner.scanImage(file, { returnDetailedScanResult: true });
-        if (result) {
-          console.log("🟢 QR from image:", result.data);
-          await handleNativeQRScan(result.data);
-        } else {
-          console.warn("No QR found in image:", file.name);
-        }
+        if (result) await handleQRResult(result.data);
       } catch (err) {
         console.error("Error scanning image:", err);
       }
     }
-    e.target.value = ""; // reset input
+    e.target.value = "";
   };
 
   // =========================================
-  // Live camera capture
+  // Camera capture
   // =========================================
-  const [stream, setStream] = useState(null);
   const startCamera = async () => {
     try {
-      const s = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
       });
-      videoRef.current.srcObject = s;
+      videoRef.current.srcObject = stream;
       await videoRef.current.play();
-      setStream(s);
+      streamRef.current = stream;
+      setShowCameraModal(true);
     } catch (err) {
       console.error("Cannot start camera:", err);
     }
   };
 
   const capturePhoto = async () => {
-    if (!videoRef.current) return;
+    const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
 
     try {
       const result = await QRScanner.scanImage(canvas, { returnDetailedScanResult: true });
       if (result) {
-        console.log("🟢 QR from live photo:", result.data);
-        await handleNativeQRScan(result.data);
+        await handleQRResult(result.data);
       } else {
         alert("❌ No QR code detected. Try again.");
       }
@@ -124,8 +114,9 @@ function StoragePage() {
   };
 
   const stopCamera = () => {
-    stream?.getTracks().forEach(t => t.stop());
-    setStream(null);
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    setShowCameraModal(false);
   };
 
   // =========================================
@@ -175,11 +166,9 @@ function StoragePage() {
           Tags: "",
           Group: "",
         });
-      } else {
-        alert("Failed to create drug");
-      }
+      } else alert("Failed to create drug");
     } catch (err) {
-      console.error("Error creating drug:", err);
+      console.error(err);
       alert("Error creating drug");
     }
   };
@@ -190,14 +179,13 @@ function StoragePage() {
 
       <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
         <button onClick={() => setShowCreateModal(true)}>Add Drug Manually</button>
-        <button onClick={() => fileInputRef.current?.click()}>Take Photo / Pick Images</button>
+        <button onClick={() => fileInputRef.current?.click()}>Select Images</button>
+        <button onClick={startCamera}>Capture QR with Camera</button>
       </div>
 
-      {/* Hidden file input for gallery/camera */}
       <input
         type="file"
         accept="image/*"
-        capture="environment"
         multiple
         ref={fileInputRef}
         style={{ display: "none" }}
@@ -246,31 +234,23 @@ function StoragePage() {
         </div>
       )}
 
-      {/* Live Camera Modal */}
-      {showQRModal && (
+      {/* Camera Modal */}
+      {showCameraModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: "rgba(0,0,0,0.8)", display: "flex",
           alignItems: "center", justifyContent: "center", zIndex: 1000,
-          flexDirection: "column", position: "relative"
+          flexDirection: "column"
         }}>
           <video
             ref={videoRef}
-            style={{
-              width: "300px",
-              height: "300px",
-              borderRadius: "8px",
-              objectFit: "cover",
-              backgroundColor: "#000"
-            }}
+            style={{ width: "300px", height: "300px", borderRadius: "8px", objectFit: "cover" }}
           />
           <canvas ref={canvasRef} style={{ display: "none" }} />
 
           <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
-            {!stream && <button onClick={startCamera}>Start Camera</button>}
-            {stream && <button onClick={capturePhoto}>Snap Photo</button>}
-            {stream && <button onClick={stopCamera}>Stop Camera</button>}
-            <button onClick={() => setShowQRModal(false)}>Close</button>
+            <button onClick={capturePhoto}>Snap Photo</button>
+            <button onClick={stopCamera}>Close Camera</button>
           </div>
         </div>
       )}
