@@ -7,6 +7,7 @@ const API_URL = "https://balsam-beta-backend.onrender.com";
 function StoragePage() {
   const [drugs, setDrugs] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
   const [newDrug, setNewDrug] = useState({
     BrandName: "",
     ScientificName: "",
@@ -20,7 +21,11 @@ function StoragePage() {
     Group: "",
   });
 
+  const videoRef = useRef(null);
   const fileInputRef = useRef(null);
+  const qrScannerRef = useRef(null);
+  const canvasRef = useRef(null);
+
   const userId = localStorage.getItem("userId");
 
   // Fetch drugs on mount
@@ -33,8 +38,10 @@ function StoragePage() {
       .catch(console.error);
   }, [userId]);
 
+  // =========================================
   // Unified QR handler
-  const handleQRScan = async (value) => {
+  // =========================================
+  const handleNativeQRScan = async (value) => {
     try {
       console.log("QR detected:", value);
       const response = await fetch(`${API_URL}/drugs/qr`, {
@@ -46,6 +53,7 @@ function StoragePage() {
       if (data.success) {
         alert("✅ Drug added from QR code!");
         setDrugs(prev => [...prev, JSON.parse(JSON.stringify(data.result))]);
+        setShowQRModal(false);
       } else {
         alert("❌ Failed:\n" + data.error);
       }
@@ -55,23 +63,74 @@ function StoragePage() {
     }
   };
 
-  // Handle multiple photo selection
+  // =========================================
+  // Handle multiple image selection
+  // =========================================
   const handlePhotoChange = async (e) => {
     const files = Array.from(e.target.files);
-    for (const file of files) {
+    for (let file of files) {
       try {
         const result = await QRScanner.scanImage(file, { returnDetailedScanResult: true });
-        console.log("🟢 Photo-based QR detected:", result.data);
-        await handleQRScan(result.data);
+        if (result) {
+          console.log("🟢 QR from image:", result.data);
+          await handleNativeQRScan(result.data);
+        } else {
+          console.warn("No QR found in image:", file.name);
+        }
       } catch (err) {
-        console.warn("❌ QR scan failed for image", file.name, err);
+        console.error("Error scanning image:", err);
       }
     }
-    // Reset input so the same files can be selected again
-    e.target.value = null;
+    e.target.value = ""; // reset input
   };
 
-  // Handle manual input for creating drugs
+  // =========================================
+  // Live camera capture
+  // =========================================
+  const [stream, setStream] = useState(null);
+  const startCamera = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      videoRef.current.srcObject = s;
+      await videoRef.current.play();
+      setStream(s);
+    } catch (err) {
+      console.error("Cannot start camera:", err);
+    }
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+    try {
+      const result = await QRScanner.scanImage(canvas, { returnDetailedScanResult: true });
+      if (result) {
+        console.log("🟢 QR from live photo:", result.data);
+        await handleNativeQRScan(result.data);
+      } else {
+        alert("❌ No QR code detected. Try again.");
+      }
+    } catch (err) {
+      console.error("Error scanning captured photo:", err);
+      alert("Error scanning QR code");
+    }
+  };
+
+  const stopCamera = () => {
+    stream?.getTracks().forEach(t => t.stop());
+    setStream(null);
+  };
+
+  // =========================================
+  // Manual drug creation
+  // =========================================
   const handleCreateInput = (e) => {
     const { name, value } = e.target;
     setNewDrug(prev => ({ ...prev, [name]: value }));
@@ -131,10 +190,10 @@ function StoragePage() {
 
       <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
         <button onClick={() => setShowCreateModal(true)}>Add Drug Manually</button>
-        <button onClick={() => fileInputRef.current?.click()}>Scan QR Code</button>
+        <button onClick={() => fileInputRef.current?.click()}>Take Photo / Pick Images</button>
       </div>
 
-      {/* Hidden input for both live capture and multiple files */}
+      {/* Hidden file input for gallery/camera */}
       <input
         type="file"
         accept="image/*"
@@ -145,7 +204,7 @@ function StoragePage() {
         onChange={handlePhotoChange}
       />
 
-      <div style={{ display: "flex", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
         {drugs.map(drug => (
           <DrugCard
             key={drug.id}
@@ -183,6 +242,35 @@ function StoragePage() {
               <button onClick={() => setShowCreateModal(false)}>Cancel</button>
               <button onClick={handleCreateDrug}>Create</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Live Camera Modal */}
+      {showQRModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.8)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 1000,
+          flexDirection: "column", position: "relative"
+        }}>
+          <video
+            ref={videoRef}
+            style={{
+              width: "300px",
+              height: "300px",
+              borderRadius: "8px",
+              objectFit: "cover",
+              backgroundColor: "#000"
+            }}
+          />
+          <canvas ref={canvasRef} style={{ display: "none" }} />
+
+          <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
+            {!stream && <button onClick={startCamera}>Start Camera</button>}
+            {stream && <button onClick={capturePhoto}>Snap Photo</button>}
+            {stream && <button onClick={stopCamera}>Stop Camera</button>}
+            <button onClick={() => setShowQRModal(false)}>Close</button>
           </div>
         </div>
       )}
