@@ -7,7 +7,6 @@ const API_URL = "https://balsam-beta-backend.onrender.com";
 function StoragePage() {
   const [drugs, setDrugs] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showQRModal, setShowQRModal] = useState(false);
   const [newDrug, setNewDrug] = useState({
     BrandName: "",
     ScientificName: "",
@@ -47,7 +46,6 @@ function StoragePage() {
       if (data.success) {
         alert("✅ Drug added from QR code!");
         setDrugs(prev => [...prev, JSON.parse(JSON.stringify(data.result))]);
-        setShowQRModal(false);
       } else {
         alert("❌ Failed:\n" + data.error);
       }
@@ -57,19 +55,20 @@ function StoragePage() {
     }
   };
 
-  // Handle image selection for QR scan
+  // Handle multiple photo selection
   const handlePhotoChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    try {
-      const result = await QRScanner.scanImage(file, { returnDetailedScanResult: true });
-      console.log("🟢 Photo-based QR detected:", result.data);
-      await handleQRScan(result.data);
-    } catch (err) {
-      console.error("Failed to scan QR from image:", err);
-      alert("❌ Could not detect QR code from the photo.");
+    const files = Array.from(e.target.files);
+    for (const file of files) {
+      try {
+        const result = await QRScanner.scanImage(file, { returnDetailedScanResult: true });
+        console.log("🟢 Photo-based QR detected:", result.data);
+        await handleQRScan(result.data);
+      } catch (err) {
+        console.warn("❌ QR scan failed for image", file.name, err);
+      }
     }
+    // Reset input so the same files can be selected again
+    e.target.value = null;
   };
 
   // Handle manual input for creating drugs
@@ -132,16 +131,15 @@ function StoragePage() {
 
       <div style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
         <button onClick={() => setShowCreateModal(true)}>Add Drug Manually</button>
-        <button onClick={() => {
-          setShowQRModal(true);
-          fileInputRef.current?.click();
-        }}>Scan QR Code</button>
+        <button onClick={() => fileInputRef.current?.click()}>Scan QR Code</button>
       </div>
 
+      {/* Hidden input for both live capture and multiple files */}
       <input
         type="file"
         accept="image/*"
         capture="environment"
+        multiple
         ref={fileInputRef}
         style={{ display: "none" }}
         onChange={handlePhotoChange}
