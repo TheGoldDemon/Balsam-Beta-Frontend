@@ -80,9 +80,18 @@ function StoragePage() {
       const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
       console.log("✅ Native BarcodeDetector supported, starting scan...");
 
+      // ---- Advanced constraints applied here ----
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          focusMode: "continuous", // experimental
+          zoom: true,               // experimental
+        },
       });
+      // -----------------------------------------
+
       video.srcObject = stream;
       await video.play();
 
