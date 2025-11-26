@@ -1,11 +1,8 @@
-//===================================================================================//
-// Imports
 import { useState, useEffect, useRef } from "react";
 import DrugCard from "./DrugCard";
-import QRScanner from "qr-scanner"; // npm install qr-scanner
-import { QrcodeResultFormat } from "html5-qrcode/esm/core";
+import QRScanner from "qr-scanner";
+
 const API_URL = "https://balsam-beta-backend.onrender.com";
-//===================================================================================//
 
 function StoragePage() {
   const [drugs, setDrugs] = useState([]);
@@ -38,28 +35,19 @@ function StoragePage() {
       .catch(console.error);
   }, [userId]);
 
-
-  // ============================================================
-  // Unified handler for BOTH native + fallback QR scan results
-  // ============================================================
+  // Unified QR handler
   const handleNativeQRScan = async (value) => {
     try {
       console.log("QR detected:", value);
-
       const response = await fetch(`${API_URL}/drugs/qr`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ qrCode: value, UserId: userId }),
       });
-
       const data = await response.json();
-
       if (data.success) {
         alert("✅ Drug added from QR code!");
-
-        const cleanDrug = JSON.parse(JSON.stringify(data.result));
-
-        setDrugs(prev => [...prev, cleanDrug]);
+        setDrugs(prev => [...prev, JSON.parse(JSON.stringify(data.result))]);
         setShowQRModal(false);
       } else {
         alert("❌ Failed:\n" + data.error);
@@ -70,16 +58,15 @@ function StoragePage() {
     }
   };
 
-
-  // ============================================================
-  // Native BarcodeDetector + fallback QRScanner
-  // ============================================================
+  // QR scanning effect
   useEffect(() => {
     if (!showQRModal) return;
 
     const video = videoRef.current;
     let stopNative = false;
+    let fallbackCancelled = false;
 
+    // Native BarcodeDetector
     const startNativeScanner = async () => {
       if (!("BarcodeDetector" in window)) return false;
 
@@ -91,9 +78,8 @@ function StoragePage() {
       if (!formats.includes("qr_code")) return false;
 
       const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-      console.log("Starting native scanner...");
+      console.log("✅ Native BarcodeDetector supported, starting scan...");
 
-      // Start camera
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
@@ -101,13 +87,15 @@ function StoragePage() {
       await video.play();
 
       const scanLoop = async () => {
-        if (stopNative) return;
+        if (stopNative) return stream.getTracks().forEach(t => t.stop());
 
         try {
           const results = await detector.detect(video);
           if (results.length > 0) {
             stopNative = true;
             stream.getTracks().forEach(t => t.stop());
+
+            console.log("🟢 Native QR detected:", results[0].rawValue);
             await handleNativeQRScan(results[0].rawValue);
             return;
           }
@@ -122,17 +110,21 @@ function StoragePage() {
       return true;
     };
 
-
+    // Fallback qr-scanner
     const startFallbackScanner = async () => {
-      let cancelled = false;
+      fallbackCancelled = false;
 
       const retry = async () => {
-        while (!cancelled) {
+        while (!fallbackCancelled) {
           try {
             const devices = await QRScanner.listCameras(true);
-            if (!devices.length) throw new Error("No cameras");
+            if (!devices.length) throw new Error("No cameras found");
 
-            const scanner = new QRScanner(video, handleQRScanFallback, {
+            const scanner = new QRScanner(video, (result) => {
+              console.log("🟡 Fallback QR detected:", result.data || result);
+              handleNativeQRScan(result.data || result);
+              scanner.stop();
+            }, {
               highlightScanRegion: true,
               highlightCodeOutline: true,
               maxScansPerSecond: 5,
@@ -141,7 +133,7 @@ function StoragePage() {
 
             await scanner.start();
             qrScannerRef.current = scanner;
-            console.log("Fallback QRScanner running.");
+            console.log("⚡ Fallback QRScanner started");
             break;
           } catch (err) {
             console.warn("Retrying fallback scanner in 1s...", err);
@@ -151,42 +143,24 @@ function StoragePage() {
       };
 
       retry();
-
-      return () => {
-        cancelled = true;
-        qrScannerRef.current?.stop();
-      };
     };
-
 
     startNativeScanner().then((supported) => {
       if (!supported) {
-        console.log("Native not supported → fallback.");
+        console.log("⚠ Native QR not supported → starting fallback");
         startFallbackScanner();
       }
     });
 
     return () => {
       stopNative = true;
+      fallbackCancelled = true;
       qrScannerRef.current?.stop();
       qrScannerRef.current = null;
     };
   }, [showQRModal]);
 
-
-  // ============================================================
-  // Fallback handler (from qr-scanner library)
-  // ============================================================
-  const handleQRScanFallback = async (qr) => {
-    qrScannerRef.current?.stop();
-    const value = qr.data || qr;
-    await handleNativeQRScan(value);
-  };
-
-
-  // ============================================================
-  // Create Drug Handlers
-  // ============================================================
+  // Handle manual input for creating drugs
   const handleCreateInput = (e) => {
     const { name, value } = e.target;
     setNewDrug(prev => ({ ...prev, [name]: value }));
@@ -240,10 +214,6 @@ function StoragePage() {
     }
   };
 
-
-  // ============================================================
-  // Render
-  // ============================================================
   return (
     <div style={{ padding: "20px" }}>
       <h1>Storage Page</h1>
@@ -330,8 +300,4 @@ function StoragePage() {
   );
 }
 
-//===================================================================================//
-// Export
 export default StoragePage;
-//===================================================================================//
-
